@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const isUuid = require('uuid-validate');
 
 const { v4: uuidv4, validate } = require('uuid');
 
@@ -9,20 +10,78 @@ app.use(cors());
 
 const users = [];
 
-function checksExistsUserAccount(request, response, next) {
-  // Complete aqui
+function checksExistsUserAccount(request, response, next) { // OK
+  const { username } = request.headers
+
+  const user = users.find( user => user.username === username)
+
+  if(!user) {
+    return response.status(404).json({ error: `username account ${username} not exists!` })
+  } else {
+    request.user = user
+    next()
+  }
 }
 
-function checksCreateTodosUserAvailability(request, response, next) {
-  // Complete aqui
+function checksCreateTodosUserAvailability(request, response, next) { // OK
+  const { user } = request
+  if(user.pro) {
+    next()
+  } else {
+    if(!user.pro && user.todos.length < 10) {
+      console.log("next")
+      next()
+    } else {
+      return response.status(403).json({ error: "Todos limit reached, update a Pro Account to get more." })
+    }
+  }
+    
 }
 
 function checksTodoExists(request, response, next) {
-  // Complete aqui
+  const { username } = request.headers
+  const { id } = request.params
+  
+// Verifica se é um uuid
+  const uuidValidate = isUuid(id)
+
+  if(!uuidValidate) {
+    return response.status(400).json({ error: "invalid uuid!" })
+  }
+
+  const user = users.find( user => user.username === username)
+  if(user) {
+    const todo = user.todos.find( todos => todos.id === id)
+    if(todo) {
+      console.log(todo)
+      console.log(user)
+
+      request.todo = todo
+      request.user = user
+    
+      next()
+    } else {
+      return response.status(404).json({ error: "Todo list not found!" })
+    }
+  } else {
+    return response.status(404).json({ error: `username account ${username} not exists!` })
+  }
 }
 
 function findUserById(request, response, next) {
-  // Complete aqui
+  const { id } = request.params
+  
+  console.log(id)
+  console.log(users)
+  const user = users.find( user => user.id === id)
+  console.log(user)
+  if(!user) {
+    return response.status(404).json({ error: `username account not exists!` })
+  }
+  
+  request.user = user
+
+  next()
 }
 
 app.post('/users', (request, response) => {
@@ -49,7 +108,6 @@ app.post('/users', (request, response) => {
 
 app.get('/users/:id', findUserById, (request, response) => {
   const { user } = request;
-
   return response.json(user);
 });
 
@@ -91,6 +149,9 @@ app.post('/todos', checksExistsUserAccount, checksCreateTodosUserAvailability, (
 app.put('/todos/:id', checksTodoExists, (request, response) => {
   const { title, deadline } = request.body;
   const { todo } = request;
+
+  console.log("todo Update test")
+  console.log(todo)
 
   todo.title = title;
   todo.deadline = new Date(deadline);
